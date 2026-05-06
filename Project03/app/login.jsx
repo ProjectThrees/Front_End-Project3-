@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApiBaseUrl } from '@/services/api';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -20,10 +21,7 @@ const RED = '#C0121A';
 const RED_LIGHT = '#FCEBEB';
 const RED_BORDER = '#F7C1C1';
 
-// ---------------------------------------------------------------------------
-// Backend base URL — replace with your Render URL when deployed
-// ---------------------------------------------------------------------------
-const BASE_URL = 'http://localhost:8080';
+const BASE_URL = getApiBaseUrl();
 
 // Ensure WebBrowser sessions complete properly
 WebBrowser.maybeCompleteAuthSession();
@@ -110,6 +108,9 @@ export default function LoginScreen() {
     Linking.getInitialURL().then((url) => {
       if (url) processRedirectURL(url);
     });
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      processRedirectURL(window.location.href);
+    }
 
     // Listen for deep links while the app is open
     const subscription = Linking.addEventListener('url', handleDeepLink);
@@ -117,13 +118,23 @@ export default function LoginScreen() {
   }, []);
 
   async function processRedirectURL(url) {
-    if (!url || !url.includes('oauth-success')) return;
+    if (!url) return;
+
+    const parsed = Linking.parse(url);
+    const oauthMessage = parsed.queryParams?.message ?? parsed.queryParams?.error;
+    const token = parsed.queryParams?.token;
+
+    if (typeof oauthMessage === 'string' && oauthMessage.length > 0) {
+      setError(typeof oauthMessage === 'string' && oauthMessage.length > 0
+        ? `Sign in failed: ${oauthMessage}`
+        : 'Sign in failed. Please try again.');
+      setGoogleLoading(false);
+      setGithubLoading(false);
+      return;
+    }
+    if (!token && !url.includes('oauth-success')) return;
 
     try {
-      // Parse the token out of myapp://oauth-success?token=abc123
-      const parsed = Linking.parse(url);
-      const token = parsed.queryParams?.token;
-
       if (!token) {
         setError('Authentication failed — no token received. Please try again.');
         return;
@@ -139,7 +150,11 @@ export default function LoginScreen() {
       setTimeout(() => {
         router.replace('/(tabs)');
       }, 1200);
-    } catch (e) {
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.history.replaceState({}, '', '/login');
+      }
+    } catch (_e) {
       setError('Something went wrong during sign in. Please try again.');
       setGoogleLoading(false);
       setGithubLoading(false);
@@ -153,6 +168,12 @@ export default function LoginScreen() {
     else setGithubLoading(true);
 
     try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        document.cookie = 'oauth_mode=web; path=/; max-age=600; SameSite=Lax';
+        window.location.assign(`${BASE_URL}/oauth2/authorization/${provider}`);
+        return;
+      }
+
       // Open the backend OAuth URL in an in-app browser
       // Spring Boot will handle the redirect to Google/GitHub and back
       const result = await WebBrowser.openAuthSessionAsync(
@@ -172,7 +193,7 @@ export default function LoginScreen() {
       if (result.type === 'success' && result.url) {
         await processRedirectURL(result.url);
       }
-    } catch (e) {
+    } catch (_e) {
       setError('Could not connect to authentication server. Please try again.');
       setGoogleLoading(false);
       setGithubLoading(false);
