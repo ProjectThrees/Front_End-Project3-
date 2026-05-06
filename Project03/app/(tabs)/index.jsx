@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   Animated,
-  Dimensions,
   StyleSheet,
   Platform,
   StatusBar,
@@ -14,13 +13,13 @@ import {
   FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
+import { fetchListings } from '@/services/api';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 const RED = '#C0121A';
 const SIDEBAR_WIDTH = 280;
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ---------------------------------------------------------------------------
 // Categories
@@ -93,20 +92,49 @@ export default function MarketplaceScreen() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [listings, setListings] = useState([]); // ← populate from API
+  const [listings, setListings] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
 
-  // ---------------------------------------------------------------------------
-  // TODO: fetch listings from backend
-  // Example:
-  // useEffect(() => {
-  //   fetch('http://localhost:8080/api/listings')
-  //     .then(res => res.json())
-  //     .then(data => setListings(data))
-  //     .catch(err => console.error(err));
-  // }, []);
-  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadListings() {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+        const backendListings = await fetchListings();
+        if (!isMounted) return;
+
+        const mappedListings = backendListings.map((listing) => ({
+          id: listing.listingId,
+          title: listing.title,
+          price: listing.price,
+          category: listing.category,
+          condition: listing.condition,
+          location: 'On Campus',
+        }));
+
+        setListings(mappedListings);
+      } catch (error) {
+        if (!isMounted) return;
+        const message = error instanceof Error ? error.message : 'Failed to load listings';
+        setLoadError(message);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadListings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   function openSidebar() {
     setSidebarOpen(true);
@@ -215,15 +243,31 @@ export default function MarketplaceScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>🛒</Text>
-                <Text style={styles.emptyTitle}>No listings yet</Text>
-                <Text style={styles.emptyText}>Be the first to post something on campus</Text>
-                <TouchableOpacity
-                    style={styles.emptyBtn}
-                    onPress={() => { closeSidebar(); router.push('/create-listing'); }}
-                >
-                  <Text style={styles.emptyBtnText}>Create a listing</Text>
-                </TouchableOpacity>
+                {isLoading ? (
+                  <>
+                    <Text style={styles.emptyIcon}>⏳</Text>
+                    <Text style={styles.emptyTitle}>Loading listings...</Text>
+                    <Text style={styles.emptyText}>Fetching marketplace data from the backend</Text>
+                  </>
+                ) : loadError ? (
+                  <>
+                    <Text style={styles.emptyIcon}>⚠️</Text>
+                    <Text style={styles.emptyTitle}>Could not load listings</Text>
+                    <Text style={styles.emptyText}>{loadError}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyIcon}>🛒</Text>
+                    <Text style={styles.emptyTitle}>No listings yet</Text>
+                    <Text style={styles.emptyText}>Be the first to post something on campus</Text>
+                    <TouchableOpacity
+                        style={styles.emptyBtn}
+                        onPress={() => { closeSidebar(); router.push('/create-listing'); }}
+                    >
+                      <Text style={styles.emptyBtnText}>Create a listing</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             }
             renderItem={({ item, index }) => <ListingCard item={item} index={index} />}
