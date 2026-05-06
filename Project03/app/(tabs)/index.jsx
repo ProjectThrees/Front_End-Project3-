@@ -1,98 +1,464 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Animated,
+  Dimensions,
+  StyleSheet,
+  Platform,
+  StatusBar,
+  SafeAreaView,
+  FlatList,
+} from 'react-native';
+import { router } from 'expo-router';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+const RED = '#C0121A';
+const SIDEBAR_WIDTH = 280;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export default function HomeScreen() {
+// ---------------------------------------------------------------------------
+// Categories
+// ---------------------------------------------------------------------------
+const CATEGORIES = ['All', 'Textbooks', 'Electronics', 'Furniture', 'Clothing', 'Dorm', 'Other'];
+
+const CATEGORY_ICONS = {
+  All: '🛒',
+  Textbooks: '📚',
+  Electronics: '💻',
+  Furniture: '🪑',
+  Clothing: '👕',
+  Dorm: '🛏',
+  Other: '📦',
+};
+
+const CATEGORY_COLORS = {
+  Textbooks: { bg: '#EAF3DE', text: '#3B6D11' },
+  Electronics: { bg: '#E6F1FB', text: '#185FA5' },
+  Furniture: { bg: '#FAEEDA', text: '#854F0B' },
+  Clothing: { bg: '#FBEAF0', text: '#993556' },
+  Dorm: { bg: '#E1F5EE', text: '#0F6E56' },
+  Other: { bg: '#F1EFE8', text: '#5F5E5A' },
+};
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function ListingCard({ item, index }) {
+  const catStyle = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.Other;
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <TouchableOpacity
+          style={styles.card}
+          activeOpacity={0.85}
+          onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
+      >
+        <View style={[styles.cardImage, { backgroundColor: '#F5F4F0' }]}>
+          <Text style={styles.cardImageIcon}>{CATEGORY_ICONS[item.category] || '📦'}</Text>
+        </View>
+        <View style={styles.cardBody}>
+          <Text style={styles.cardPrice}>${item.price}</Text>
+          <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+          <View style={styles.cardMeta}>
+            <View style={[styles.categoryBadge, { backgroundColor: catStyle.bg }]}>
+              <Text style={[styles.categoryBadgeText, { color: catStyle.text }]}>{item.category}</Text>
+            </View>
+            <Text style={styles.conditionText}>{item.condition}</Text>
+          </View>
+          <Text style={styles.cardLocation}>📍 {item.location}</Text>
+        </View>
+      </TouchableOpacity>
   );
 }
 
+function SidebarItem({ icon, label, onPress }) {
+  return (
+      <TouchableOpacity style={styles.sidebarItem} onPress={onPress} activeOpacity={0.75}>
+        <Text style={styles.sidebarIcon}>{icon}</Text>
+        <Text style={styles.sidebarLabel}>{label}</Text>
+      </TouchableOpacity>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main screen
+// ---------------------------------------------------------------------------
+export default function MarketplaceScreen() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [listings, setListings] = useState([]); // ← populate from API
+  const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const overlayAnim = useRef(new Animated.Value(0)).current;
+
+  // ---------------------------------------------------------------------------
+  // TODO: fetch listings from backend
+  // Example:
+  // useEffect(() => {
+  //   fetch('http://localhost:8080/api/listings')
+  //     .then(res => res.json())
+  //     .then(data => setListings(data))
+  //     .catch(err => console.error(err));
+  // }, []);
+  // ---------------------------------------------------------------------------
+
+  function openSidebar() {
+    setSidebarOpen(true);
+    Animated.parallel([
+      Animated.spring(sidebarAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }),
+      Animated.timing(overlayAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }
+
+  function closeSidebar() {
+    Animated.parallel([
+      Animated.spring(sidebarAnim, {
+        toValue: -SIDEBAR_WIDTH,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }),
+      Animated.timing(overlayAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setSidebarOpen(false));
+  }
+
+  const filteredListings = listings.filter(item => {
+    const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  return (
+      <View style={styles.root}>
+        <StatusBar barStyle="light-content" backgroundColor={RED} />
+
+        {/* ── Header ── */}
+        <SafeAreaView style={styles.headerSafe}>
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.menuBtn} onPress={openSidebar} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <View style={styles.hamburger}>
+                <View style={styles.hamburgerLine} />
+                <View style={styles.hamburgerLine} />
+                <View style={styles.hamburgerLine} />
+              </View>
+            </TouchableOpacity>
+
+            <Text style={styles.headerTitle}>Student Marketplace</Text>
+
+            <TouchableOpacity style={styles.headerAvatarBtn}>
+              <View style={styles.headerAvatar}>
+                <Text style={styles.headerAvatarText}>U</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Search bar */}
+          <View style={styles.searchRow}>
+            <View style={styles.searchWrap}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search listings…"
+                  placeholderTextColor="rgba(255,255,255,0.6)"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+              />
+            </View>
+          </View>
+        </SafeAreaView>
+
+        {/* ── Category pills ── */}
+        <View style={styles.categoryBar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+            {CATEGORIES.map(cat => (
+                <TouchableOpacity
+                    key={cat}
+                    style={[styles.categoryPill, selectedCategory === cat && styles.categoryPillActive]}
+                    onPress={() => setSelectedCategory(cat)}
+                    activeOpacity={0.8}
+                >
+                  <Text style={styles.categoryPillIcon}>{CATEGORY_ICONS[cat]}</Text>
+                  <Text style={[styles.categoryPillText, selectedCategory === cat && styles.categoryPillTextActive]}>
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* ── Listings grid ── */}
+        <FlatList
+            data={filteredListings}
+            keyExtractor={item => item.id}
+            numColumns={2}
+            contentContainerStyle={styles.grid}
+            columnWrapperStyle={filteredListings.length > 0 ? styles.gridRow : null}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>🛒</Text>
+                <Text style={styles.emptyTitle}>No listings yet</Text>
+                <Text style={styles.emptyText}>Be the first to post something on campus</Text>
+                <TouchableOpacity
+                    style={styles.emptyBtn}
+                    onPress={() => { closeSidebar(); router.push('/create-listing'); }}
+                >
+                  <Text style={styles.emptyBtnText}>Create a listing</Text>
+                </TouchableOpacity>
+              </View>
+            }
+            renderItem={({ item, index }) => <ListingCard item={item} index={index} />}
+        />
+
+        {/* ── Sidebar overlay ── */}
+        {sidebarOpen && (
+            <Animated.View style={[styles.overlay, { opacity: overlayAnim }]} pointerEvents="auto">
+              <TouchableOpacity style={StyleSheet.absoluteFill} onPress={closeSidebar} activeOpacity={1} />
+            </Animated.View>
+        )}
+
+        {/* ── Sidebar ── */}
+        <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}>
+          <SafeAreaView>
+            <View style={styles.sidebarHeader}>
+              <View style={styles.sidebarLogoRow}>
+                <View style={styles.sidebarLogoMark}>
+                  <Text style={styles.sidebarLogoIcon}>🛒</Text>
+                </View>
+                <Text style={styles.sidebarLogoText}>Student{'\n'}Marketplace</Text>
+              </View>
+              <TouchableOpacity onPress={closeSidebar} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.sidebarClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+
+          <View style={styles.sidebarUserRow}>
+            <View style={styles.sidebarAvatar}>
+              <Text style={styles.sidebarAvatarText}>U</Text>
+            </View>
+            <View>
+              <Text style={styles.sidebarUserName}>Campus User</Text>
+              <Text style={styles.sidebarUserEmail}>user@university.edu</Text>
+            </View>
+          </View>
+
+          <View style={styles.sidebarDivider} />
+
+          <ScrollView style={styles.sidebarNav} showsVerticalScrollIndicator={false}>
+            <SidebarItem icon="➕" label="Create Listing"   onPress={() => { closeSidebar(); router.push('/create-listing'); }} />
+            <SidebarItem icon="❤️" label="Favorites"        onPress={() => { closeSidebar(); router.push('/favorites'); }} />
+            <SidebarItem icon="👤" label="User Details"     onPress={() => { closeSidebar(); router.push('/profile'); }} />
+            <SidebarItem icon="📋" label="View My Listings" onPress={() => { closeSidebar(); router.push('/my-listings'); }} />
+
+            <View style={styles.sidebarDivider} />
+
+            <SidebarItem icon="⚙️" label="Settings"  onPress={() => { closeSidebar(); router.push('/settings'); }} />
+            <SidebarItem icon="🚪" label="Sign Out"   onPress={() => { closeSidebar(); router.replace('/login'); }} />
+          </ScrollView>
+        </Animated.View>
+      </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
-  titleContainer: {
+  root: { flex: 1, backgroundColor: '#F5F4F0' },
+
+  headerSafe: { backgroundColor: RED },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 8 : 8,
+    paddingBottom: 10,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  },
+  menuBtn: { padding: 4 },
+  hamburger: { gap: 5, width: 22 },
+  hamburgerLine: { height: 2, backgroundColor: '#fff', borderRadius: 2 },
+  headerAvatarBtn: {},
+  headerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerAvatarText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  searchRow: { paddingHorizontal: 16, paddingBottom: 14 },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  searchIcon: { fontSize: 14 },
+  searchInput: { flex: 1, fontSize: 14, color: '#fff' },
+
+  categoryBar: { backgroundColor: '#fff', borderBottomWidth: 0.5, borderBottomColor: '#E0E0E0' },
+  categoryScroll: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: '#D0D0D0',
+    backgroundColor: '#fff',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  categoryPillActive: { backgroundColor: RED, borderColor: RED },
+  categoryPillIcon: { fontSize: 13 },
+  categoryPillText: { fontSize: 13, fontWeight: '500', color: '#555' },
+  categoryPillTextActive: { color: '#fff' },
+
+  grid: { padding: 12, paddingBottom: 32 },
+  gridRow: { gap: 10 },
+
+  card: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 10,
+    borderWidth: 0.5,
+    borderColor: '#E8E8E8',
+  },
+  cardImage: { height: 120, alignItems: 'center', justifyContent: 'center' },
+  cardImageIcon: { fontSize: 36 },
+  cardBody: { padding: 10 },
+  cardPrice: { fontSize: 16, fontWeight: '700', color: RED, marginBottom: 2 },
+  cardTitle: { fontSize: 13, fontWeight: '500', color: '#111', lineHeight: 18, marginBottom: 6 },
+  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  categoryBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 },
+  categoryBadgeText: { fontSize: 10, fontWeight: '600' },
+  conditionText: { fontSize: 11, color: '#999' },
+  cardLocation: { fontSize: 11, color: '#ABABAB', marginTop: 2 },
+
+  emptyState: { alignItems: 'center', paddingTop: 80, paddingBottom: 40, paddingHorizontal: 32 },
+  emptyIcon: { fontSize: 48, marginBottom: 14 },
+  emptyTitle: { fontSize: 17, fontWeight: '600', color: '#333', marginBottom: 6 },
+  emptyText: { fontSize: 13, color: '#999', textAlign: 'center', marginBottom: 20 },
+  emptyBtn: {
+    backgroundColor: RED,
+    paddingHorizontal: 24,
+    paddingVertical: 11,
+    borderRadius: 10,
+  },
+  emptyBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    zIndex: 10,
+  },
+
+  sidebar: {
     position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: SIDEBAR_WIDTH,
+    backgroundColor: '#fff',
+    zIndex: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 12,
   },
+  sidebarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: RED,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 12 : 12,
+    paddingBottom: 16,
+  },
+  sidebarLogoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sidebarLogoMark: {
+    width: 36,
+    height: 36,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sidebarLogoIcon: { fontSize: 18 },
+  sidebarLogoText: {
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  sidebarClose: { fontSize: 18, color: 'rgba(255,255,255,0.8)' },
+
+  sidebarUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  sidebarAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FCEBEB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sidebarAvatarText: { fontSize: 16, fontWeight: '700', color: RED },
+  sidebarUserName: { fontSize: 14, fontWeight: '600', color: '#111' },
+  sidebarUserEmail: { fontSize: 12, color: '#999', marginTop: 1 },
+
+  sidebarDivider: { height: 0.5, backgroundColor: '#EBEBEB', marginHorizontal: 16, marginVertical: 8 },
+  sidebarNav: { flex: 1, paddingHorizontal: 8 },
+  sidebarItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 13,
+    borderRadius: 10,
+    marginBottom: 2,
+  },
+  sidebarIcon: { fontSize: 18, width: 24, textAlign: 'center' },
+  sidebarLabel: { fontSize: 14, fontWeight: '500', color: '#222' },
 });
