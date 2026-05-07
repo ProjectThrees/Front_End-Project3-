@@ -61,6 +61,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
     return response.json() as Promise<T>;
 }
+
 export async function fetchListings(): Promise<Listing[]> {
   return request<Listing[]>('/listings');
 }
