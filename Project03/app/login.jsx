@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -8,7 +9,7 @@ import {
   KeyboardAvoidingView,
   StyleSheet,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -205,6 +206,7 @@ export default function LoginScreen() {
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <Stack.Screen options={{ headerShown: false }} />
         {/* Header band */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
