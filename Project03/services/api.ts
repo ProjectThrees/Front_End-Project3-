@@ -45,12 +45,13 @@ export function getApiBaseUrl(): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+    const { headers: initHeaders, ...restInit } = init ?? {};
     const response = await fetch(`${getApiBaseUrl()}${path}`, {
+        ...restInit,
         headers: {
             'Content-Type': 'application/json',
-            ...(init?.headers ?? {}),
+            ...(initHeaders ?? {}),
         },
-        ...init,
     });
 
     if (!response.ok) {
@@ -61,8 +62,76 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return response.json() as Promise<T>;
 }
 
+async function authRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await AsyncStorage.getItem('authToken');
+  return request<T>(path, {
+    ...init,
+    headers: {
+      ...(init?.headers ?? {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+}
+
 export async function fetchListings(): Promise<Listing[]> {
   return request<Listing[]>('/listings');
+}
+
+export async function getListingById(listingId: string): Promise<Listing> {
+  return request<Listing>(`/listings/${listingId}`);
+}
+
+export type CreateListingPayload = {
+  userId: string;
+  title: string;
+  description: string;
+  price: number;
+  category: string;
+  condition: string;
+  imageUrl: string | null;
+  isSold: boolean;
+};
+
+export async function createListing(payload: CreateListingPayload): Promise<Listing> {
+  return authRequest<Listing>('/listings', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export type FavoriteResponse = {
+  favoriteId: string;
+  userId: string;
+  listingId: string;
+  createdAt: string;
+};
+
+export async function addFavorite(listingId: string, userId: string): Promise<FavoriteResponse> {
+  return authRequest<FavoriteResponse>(`/favorites/${listingId}`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export async function removeFavorite(listingId: string, userId: string): Promise<void> {
+  await authRequest<void>(`/favorites/${listingId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export type CreateReportPayload = {
+  reporterId: string;
+  reportedUserId: string | null;
+  listingId: string | null;
+  reason: string;
+};
+
+export async function createReport(payload: CreateReportPayload): Promise<void> {
+  await authRequest<void>('/report', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export type User = {
