@@ -11,7 +11,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchMyListings, Listing } from '../services/api';
 
-
+import { router } from 'expo-router';
+import { TouchableOpacity } from 'react-native';
 
 export default function MyListingsScreen() {
     const [listings, setListings] = useState<Listing[]>([]);
@@ -74,7 +75,11 @@ export default function MyListingsScreen() {
                 </View>
             }
             renderItem={({ item }) => (
-                <View style={styles.card}>
+                <TouchableOpacity
+                    style={styles.card}
+                    activeOpacity={0.8}
+                    onPress={() => router.push(`/listing/${item.listingId}`)}
+                >
                     {item.imageUrl ? (
                         <Image source={{ uri: item.imageUrl }} style={styles.image} />
                     ) : (
@@ -93,7 +98,7 @@ export default function MyListingsScreen() {
                             {item.isSold ? 'Sold' : 'Available'}
                         </Text>
                     </View>
-                </View>
+                </TouchableOpacity>
             )}
         />
     );
