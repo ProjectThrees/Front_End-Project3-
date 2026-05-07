@@ -46,12 +46,9 @@ export function getApiBaseUrl(): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const token = await AsyncStorage.getItem('authToken');
-
     const response = await fetch(`${getApiBaseUrl()}${path}`, {
         headers: {
             'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...(init?.headers ?? {}),
         },
         ...init,
@@ -64,7 +61,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
     return response.json() as Promise<T>;
 }
-
 export async function fetchListings(): Promise<Listing[]> {
   return request<Listing[]>('/listings');
 }
