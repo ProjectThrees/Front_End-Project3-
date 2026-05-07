@@ -343,7 +343,7 @@ export default function MarketplaceScreen() {
           <ScrollView style={styles.sidebarNav} showsVerticalScrollIndicator={false}>
             <SidebarItem icon="➕" label="Create Listing"   onPress={() => { closeSidebar(); router.push('/create-listing'); }} />
             <SidebarItem icon="❤️" label="Favorites"        onPress={() => { closeSidebar(); router.push('/favorites'); }} />
-            <SidebarItem icon="👤" label="User Details"     onPress={() => { closeSidebar(); router.push('/profile'); }} />
+            <SidebarItem icon="👤" label="Profile"     onPress={() => { closeSidebar(); router.push('/profile'); }} />
             <SidebarItem icon="📋" label="View My Listings" onPress={() => { closeSidebar(); router.push('/my-listings'); }} />
             {isAdmin && (
               <>
