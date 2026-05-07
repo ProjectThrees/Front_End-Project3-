@@ -3,45 +3,45 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type Listing = {
-  listingId: string;
-  userId: string;
-  title: string;
-  description: string;
-  price: number;
-  category: string;
-  condition: string;
-  imageUrl: string | null;
-  isSold: boolean;
-  createdAt: string;
+    listingId: string;
+    userId: string;
+    title: string;
+    description: string;
+    price: number;
+    category: string;
+    condition: string;
+    imageUrl: string | null;
+    isSold: boolean;
+    createdAt: string;
 };
 
 const API_PORT = '8080';
 
 function getDevHostFromExpo(): string | null {
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (!hostUri) {
-    return null;
-  }
+    const hostUri = Constants.expoConfig?.hostUri;
+    if (!hostUri) {
+        return null;
+    }
 
-  return hostUri.split(':')[0] ?? null;
+    return hostUri.split(':')[0] ?? null;
 }
 
 export function getApiBaseUrl(): string {
-  const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (envUrl) {
-    return envUrl.replace(/\/$/, '');
-  }
+    const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+    if (envUrl) {
+        return envUrl.replace(/\/$/, '');
+    }
 
-  const expoHost = getDevHostFromExpo();
-  if (expoHost) {
-    return `http://${expoHost}:${API_PORT}`;
-  }
+    const expoHost = getDevHostFromExpo();
+    if (expoHost) {
+        return `http://${expoHost}:${API_PORT}`;
+    }
 
-  if (Platform.OS === 'android') {
-    return `http://10.0.2.2:${API_PORT}`;
-  }
+    if (Platform.OS === 'android') {
+        return `http://10.0.2.2:${API_PORT}`;
+    }
 
-  return `http://localhost:${API_PORT}`;
+    return `http://localhost:${API_PORT}`;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -63,75 +63,75 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function authRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = await AsyncStorage.getItem('authToken');
-  return request<T>(path, {
-    ...init,
-    headers: {
-      ...(init?.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+    const token = await AsyncStorage.getItem('authToken');
+    return request<T>(path, {
+        ...init,
+        headers: {
+            ...(init?.headers ?? {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+    });
 }
 
 export async function fetchListings(): Promise<Listing[]> {
-  return request<Listing[]>('/listings');
+    return request<Listing[]>('/listings');
 }
 
 export async function getListingById(listingId: string): Promise<Listing> {
-  return request<Listing>(`/listings/${listingId}`);
+    return request<Listing>(`/listings/${listingId}`);
 }
 
 export type CreateListingPayload = {
-  userId: string;
-  title: string;
-  description: string;
-  price: number;
-  category: string;
-  condition: string;
-  imageUrl: string | null;
-  isSold: boolean;
+    userId: string;
+    title: string;
+    description: string;
+    price: number;
+    category: string;
+    condition: string;
+    imageUrl: string | null;
+    isSold: boolean;
 };
 
 export async function createListing(payload: CreateListingPayload): Promise<Listing> {
-  return authRequest<Listing>('/listings', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+    return authRequest<Listing>('/listings', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
 }
 
 export type FavoriteResponse = {
-  favoriteId: string;
-  userId: string;
-  listingId: string;
-  createdAt: string;
+    favoriteId: string;
+    userId: string;
+    listingId: string;
+    createdAt: string;
 };
 
 export async function addFavorite(listingId: string, userId: string): Promise<FavoriteResponse> {
-  return authRequest<FavoriteResponse>(`/favorites/${listingId}`, {
-    method: 'POST',
-    body: JSON.stringify({ userId }),
-  });
+    return authRequest<FavoriteResponse>(`/favorites/${listingId}`, {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+    });
 }
 
 export async function removeFavorite(listingId: string, userId: string): Promise<void> {
-  await authRequest<void>(`/favorites/${listingId}`, {
-    method: 'DELETE',
-    body: JSON.stringify({ userId }),
-  });
+    await authRequest<void>(`/favorites/${listingId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ userId }),
+    });
 }
 
 export type CreateReportPayload = {
-  reporterId: string;
-  reportedUserId: string | null;
-  listingId: string | null;
-  reason: string;
+    reporterId: string;
+    reportedUserId: string | null;
+    listingId: string | null;
+    reason: string;
 };
 
 export async function createReport(payload: CreateReportPayload): Promise<void> {
-  await authRequest<void>('/report', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+    await authRequest<void>('/report', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
 }
 
 export type User = {

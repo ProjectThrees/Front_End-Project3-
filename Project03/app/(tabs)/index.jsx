@@ -352,7 +352,7 @@ export default function MarketplaceScreen() {
 
             <View style={styles.sidebarDivider} />
 
-            <SidebarItem icon="⚙️" label="Settings"  onPress={() => { closeSidebar(); router.push('/settings'); }} />
+
             <SidebarItem icon="🚪" label="Sign Out"   onPress={handleSignOut} />
 
           </ScrollView>
