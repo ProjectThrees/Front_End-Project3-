@@ -13,7 +13,8 @@ import {
   FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
-import { fetchListings } from '@/services/api';
+import { fetchListings, getCurrentUser } from '@/services/api';
+import { clearAuthSession, getStoredUserRole } from '@/services/auth';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -90,6 +91,8 @@ function SidebarItem({ icon, label, onPress }) {
 // ---------------------------------------------------------------------------
 export default function MarketplaceScreen() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [listings, setListings] = useState([]);
@@ -135,6 +138,33 @@ export default function MarketplaceScreen() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCurrentUser() {
+      try {
+        const user = await getCurrentUser();
+        if (!isMounted) return;
+        setCurrentUser(user);
+        setIsAdmin(user.role?.toLowerCase().includes('admin') ?? false);
+      } catch {
+        // Backend unreachable — fall back to stored role
+        const role = await getStoredUserRole();
+        if (isMounted) setIsAdmin(role === 'admin');
+      }
+    }
+
+    loadCurrentUser();
+
+    return () => { isMounted = false; };
+  }, []);
+
+  async function handleSignOut() {
+    await clearAuthSession();
+    closeSidebar();
+    router.replace('/login');
+  }
 
   function openSidebar() {
     setSidebarOpen(true);
@@ -194,7 +224,7 @@ export default function MarketplaceScreen() {
 
             <TouchableOpacity style={styles.headerAvatarBtn}>
               <View style={styles.headerAvatar}>
-                <Text style={styles.headerAvatarText}>U</Text>
+                <Text style={styles.headerAvatarText}>{currentUser?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -298,11 +328,11 @@ export default function MarketplaceScreen() {
 
           <View style={styles.sidebarUserRow}>
             <View style={styles.sidebarAvatar}>
-              <Text style={styles.sidebarAvatarText}>U</Text>
+              <Text style={styles.sidebarAvatarText}>{currentUser?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
             </View>
             <View>
-              <Text style={styles.sidebarUserName}>Campus User</Text>
-              <Text style={styles.sidebarUserEmail}>user@university.edu</Text>
+              <Text style={styles.sidebarUserName}>{currentUser?.name ?? (isAdmin ? 'Campus Admin' : 'Campus User')}</Text>
+              <Text style={styles.sidebarUserEmail}>{currentUser?.email ?? ''}</Text>
             </View>
           </View>
 
@@ -313,11 +343,18 @@ export default function MarketplaceScreen() {
             <SidebarItem icon="❤️" label="Favorites"        onPress={() => { closeSidebar(); router.push('/favorites'); }} />
             <SidebarItem icon="👤" label="Profile"     onPress={() => { closeSidebar(); router.push('/profile'); }} />
             <SidebarItem icon="📋" label="View My Listings" onPress={() => { closeSidebar(); router.push('/my-listings'); }} />
+            {isAdmin && (
+              <>
+                <SidebarItem icon="🚩" label="View Reports" onPress={() => { closeSidebar(); router.push('/admin/reports'); }} />
+                <SidebarItem icon="🛡️" label="Manage Users" onPress={() => { closeSidebar(); router.push('/admin/manage-users'); }} />
+              </>
+            )}
 
             <View style={styles.sidebarDivider} />
 
             <SidebarItem icon="⚙️" label="Settings"  onPress={() => { closeSidebar(); router.push('/settings'); }} />
-            <SidebarItem icon="🚪" label="Sign Out"   onPress={() => { closeSidebar(); router.replace('/login'); }} />
+            <SidebarItem icon="🚪" label="Sign Out"   onPress={handleSignOut} />
+
           </ScrollView>
         </Animated.View>
       </View>
@@ -505,4 +542,5 @@ const styles = StyleSheet.create({
   },
   sidebarIcon: { fontSize: 18, width: 24, textAlign: 'center' },
   sidebarLabel: { fontSize: 14, fontWeight: '500', color: '#222' },
+
 });

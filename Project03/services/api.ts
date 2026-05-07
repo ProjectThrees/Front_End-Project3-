@@ -1,7 +1,6 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { jwtDecode } from "jwt-decode";
 
 export type Listing = {
   listingId: string;
@@ -79,11 +78,6 @@ export async function getUserById(userId: string): Promise<User> {
     return request<User>(`/users/${userId}`);
 }
 
-type TokenPayload = {
-    sub?: string;
-    userId?: string;
-};
-
 export async function getCurrentUser(): Promise<User> {
     const token = await AsyncStorage.getItem("authToken");
 
@@ -91,15 +85,7 @@ export async function getCurrentUser(): Promise<User> {
         throw new Error("No auth token found");
     }
 
-    const decoded = jwtDecode<TokenPayload>(token);
-
-    console.log("JWT decoded:", decoded);
-
-    const userId = decoded.userId ?? decoded.sub;
-
-    if (!userId) {
-        throw new Error("Token does not contain userId or sub");
-    }
-
-    return getUserById(userId);
+    return request<User>('/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+    });
 }
