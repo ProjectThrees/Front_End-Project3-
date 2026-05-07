@@ -165,3 +165,58 @@ export async function fetchMyListings(): Promise<Listing[]> {
 
     return listings.filter((listing) => listing.userId === user.userId);
 }
+
+// ─── Admin: Reports ───────────────────────────────────────────────────────────
+
+export type Report = {
+    reportId: string;
+    reporterId: string | null;
+    reportedUserId: string | null;
+    listingId: string | null;
+    reason: string;
+    status: string;
+    createdAt: string;
+};
+
+export async function getAdminReports(): Promise<Report[]> {
+    return authRequest<Report[]>('/report');
+}
+
+export async function getReportById(reportId: string): Promise<Report> {
+    return authRequest<Report>(`/report/${reportId}`);
+}
+
+export async function updateReportStatus(reportId: string, status: string): Promise<Report> {
+    return authRequest<Report>(`/report/${reportId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+    });
+}
+
+export async function deleteReport(reportId: string): Promise<void> {
+    await authRequest<void>(`/report/${reportId}`, { method: 'DELETE' });
+}
+
+// ─── Admin: Users ─────────────────────────────────────────────────────────────
+
+export async function getAllUsers(): Promise<User[]> {
+    return authRequest<User[]>('/users');
+}
+
+export type UpdateUserPayload = {
+    name: string;
+    email: string;
+    role: string;
+    status: string;
+};
+
+export async function updateUserById(userId: string, payload: UpdateUserPayload): Promise<User> {
+    return authRequest<User>(`/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function deleteUserById(userId: string): Promise<void> {
+    await authRequest<void>(`/users/${userId}`, { method: 'DELETE' });
+}
