@@ -13,9 +13,8 @@ import {
   FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
-import { fetchListings } from '@/services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { clearAuthSession, getStoredUserRole, USER_ROLE_KEY } from '@/services/auth';
+import { fetchListings, getCurrentUser } from '@/services/api';
+import { clearAuthSession, getStoredUserRole } from '@/services/auth';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -93,6 +92,7 @@ function SidebarItem({ icon, label, onPress }) {
 export default function MarketplaceScreen() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [listings, setListings] = useState([]);
@@ -142,30 +142,28 @@ export default function MarketplaceScreen() {
   useEffect(() => {
     let isMounted = true;
 
-    async function loadUserRole() {
-      const role = await getStoredUserRole();
-      if (isMounted) {
-        setIsAdmin(role === 'admin');
+    async function loadCurrentUser() {
+      try {
+        const user = await getCurrentUser();
+        if (!isMounted) return;
+        setCurrentUser(user);
+        setIsAdmin(user.role?.toLowerCase().includes('admin') ?? false);
+      } catch {
+        // Backend unreachable — fall back to stored role
+        const role = await getStoredUserRole();
+        if (isMounted) setIsAdmin(role === 'admin');
       }
     }
 
-    loadUserRole();
+    loadCurrentUser();
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   async function handleSignOut() {
     await clearAuthSession();
     closeSidebar();
     router.replace('/login');
-  }
-
-  async function toggleAdminMode() {
-    const newRole = isAdmin ? 'user' : 'admin';
-    await AsyncStorage.setItem(USER_ROLE_KEY, newRole);
-    setIsAdmin(!isAdmin);
   }
 
   function openSidebar() {
@@ -222,11 +220,11 @@ export default function MarketplaceScreen() {
               </View>
             </TouchableOpacity>
 
-            <Text style={styles.headerTitle}>{isAdmin ? 'Admin Marketplace' : 'Student Marketplace'}</Text>
+            <Text style={styles.headerTitle}>Student Marketplace</Text>
 
             <TouchableOpacity style={styles.headerAvatarBtn}>
               <View style={styles.headerAvatar}>
-                <Text style={styles.headerAvatarText}>U</Text>
+                <Text style={styles.headerAvatarText}>{currentUser?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -330,11 +328,11 @@ export default function MarketplaceScreen() {
 
           <View style={styles.sidebarUserRow}>
             <View style={styles.sidebarAvatar}>
-              <Text style={styles.sidebarAvatarText}>U</Text>
+              <Text style={styles.sidebarAvatarText}>{currentUser?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
             </View>
             <View>
-              <Text style={styles.sidebarUserName}>{isAdmin ? 'Campus Admin' : 'Campus User'}</Text>
-              <Text style={styles.sidebarUserEmail}>{isAdmin ? 'admin@university.edu' : 'user@university.edu'}</Text>
+              <Text style={styles.sidebarUserName}>{currentUser?.name ?? (isAdmin ? 'Campus Admin' : 'Campus User')}</Text>
+              <Text style={styles.sidebarUserEmail}>{currentUser?.email ?? ''}</Text>
             </View>
           </View>
 
@@ -357,12 +355,6 @@ export default function MarketplaceScreen() {
             <SidebarItem icon="⚙️" label="Settings"  onPress={() => { closeSidebar(); router.push('/settings'); }} />
             <SidebarItem icon="🚪" label="Sign Out"   onPress={handleSignOut} />
 
-            <View style={styles.sidebarDivider} />
-            <TouchableOpacity style={styles.devToggle} onPress={toggleAdminMode} activeOpacity={0.7}>
-              <Text style={styles.devToggleText}>
-                {isAdmin ? '🔴 Dev: Disable Admin Mode' : '🟢 Dev: Enable Admin Mode'}
-              </Text>
-            </TouchableOpacity>
           </ScrollView>
         </Animated.View>
       </View>
@@ -551,16 +543,4 @@ const styles = StyleSheet.create({
   sidebarIcon: { fontSize: 18, width: 24, textAlign: 'center' },
   sidebarLabel: { fontSize: 14, fontWeight: '500', color: '#222' },
 
-  devToggle: {
-    marginHorizontal: 12,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 8,
-    backgroundColor: '#F5F4F0',
-    borderWidth: 1,
-    borderColor: '#DCDCDC',
-    borderStyle: 'dashed',
-  },
-  devToggleText: { fontSize: 12, color: '#777', textAlign: 'center' },
 });

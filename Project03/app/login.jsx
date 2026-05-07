@@ -12,8 +12,8 @@ import {
 import { router, Stack } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-import { getApiBaseUrl } from '@/services/api';
-import { persistAuthSession } from '@/services/auth';
+import { getApiBaseUrl, getCurrentUser } from '@/services/api';
+import { persistAuthSession, updateStoredRole } from '@/services/auth';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -141,8 +141,16 @@ export default function LoginScreen() {
         return;
       }
 
-      // Store token + role so we can route users by permission.
-      const userRole = await persistAuthSession(token);
+      // Store token first (needed so getCurrentUser can read it)
+      let userRole = await persistAuthSession(token);
+
+      // Fetch real user from backend to get the actual DB role
+      try {
+        const user = await getCurrentUser();
+        userRole = await updateStoredRole(user.role);
+      } catch {
+        // Backend unreachable — fall back to JWT-decoded role already stored
+      }
 
       setSuccess(true);
       setGoogleLoading(false);

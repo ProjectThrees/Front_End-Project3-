@@ -75,6 +75,12 @@ export async function getStoredUserRole(): Promise<AppUserRole> {
   return value === 'admin' ? 'admin' : 'user';
 }
 
+export async function updateStoredRole(backendRole: string): Promise<AppUserRole> {
+  const role: AppUserRole = backendRole.toLowerCase().includes('admin') ? 'admin' : 'user';
+  await AsyncStorage.setItem(USER_ROLE_KEY, role);
+  return role;
+}
+
 export async function clearAuthSession(): Promise<void> {
   await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, USER_ROLE_KEY]);
 }
