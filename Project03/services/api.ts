@@ -158,3 +158,10 @@ export async function getCurrentUser(): Promise<User> {
         headers: { Authorization: `Bearer ${token}` },
     });
 }
+
+export async function fetchMyListings(): Promise<Listing[]> {
+    const user = await getCurrentUser();
+    const listings = await fetchListings();
+
+    return listings.filter((listing) => listing.userId === user.userId);
+}

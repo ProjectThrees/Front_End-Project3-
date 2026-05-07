@@ -342,7 +342,7 @@ export default function MarketplaceScreen() {
             <SidebarItem icon="➕" label="Create Listing"   onPress={() => { closeSidebar(); router.push('/create-listing'); }} />
             <SidebarItem icon="❤️" label="Favorites"        onPress={() => { closeSidebar(); router.push('/favorites'); }} />
             <SidebarItem icon="👤" label="Profile"     onPress={() => { closeSidebar(); router.push('/profile'); }} />
-            <SidebarItem icon="📋" label="View My Listings" onPress={() => { closeSidebar(); router.push('/my-listings'); }} />
+            <SidebarItem icon="📋" label="View My Listings" onPress={() => { closeSidebar(); router.push('/MyListings'); }} />
             {isAdmin && (
               <>
                 <SidebarItem icon="🚩" label="View Reports" onPress={() => { closeSidebar(); router.push('/admin/reports'); }} />
