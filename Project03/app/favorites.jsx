@@ -12,22 +12,12 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
-import {
-    getCurrentUser,
-    getListingById,
-    removeFavorite,
-    FavoriteResponse,
-    Listing,
-    User,
-} from '@/services/api';
+import { getCurrentUser, getListingById, removeFavorite, getApiBaseUrl } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 const RED = '#C0121A';
 
-const CATEGORY_ICONS: Record<string, string> = {
+const CATEGORY_ICONS = {
     Textbooks: '📚',
     Electronics: '💻',
     Furniture: '🪑',
@@ -36,7 +26,7 @@ const CATEGORY_ICONS: Record<string, string> = {
     Other: '📦',
 };
 
-const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+const CATEGORY_COLORS = {
     Textbooks: { bg: '#EAF3DE', text: '#3B6D11' },
     Electronics: { bg: '#E6F1FB', text: '#185FA5' },
     Furniture: { bg: '#FAEEDA', text: '#854F0B' },
@@ -45,19 +35,9 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
     Other: { bg: '#F1EFE8', text: '#5F5E5A' },
 };
 
-// ---------------------------------------------------------------------------
-// Type for a favorite entry enriched with listing data
-// ---------------------------------------------------------------------------
-type EnrichedFavorite = FavoriteResponse & { listing: Listing };
-
-// ---------------------------------------------------------------------------
-// Fetch all favorites for the current user
-// Since GET /favorites returns all, we filter by userId client-side
-// ---------------------------------------------------------------------------
-async function fetchFavorites(): Promise<FavoriteResponse[]> {
+async function fetchAllFavorites() {
     const token = await AsyncStorage.getItem('authToken');
-    const baseUrl = (await import('@/services/api')).getApiBaseUrl();
-    const response = await fetch(`${baseUrl}/favorites`, {
+    const response = await fetch(`${getApiBaseUrl()}/favorites`, {
         headers: {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -70,18 +50,7 @@ async function fetchFavorites(): Promise<FavoriteResponse[]> {
     return response.json();
 }
 
-// ---------------------------------------------------------------------------
-// FavoriteCard
-// ---------------------------------------------------------------------------
-function FavoriteCard({
-                          item,
-                          onRemove,
-                          isRemoving,
-                      }: {
-    item: EnrichedFavorite;
-    onRemove: (item: EnrichedFavorite) => void;
-    isRemoving: boolean;
-}) {
+function FavoriteCard({ item, onRemove, isRemoving }) {
     const { listing } = item;
     const catStyle = CATEGORY_COLORS[listing.category] ?? CATEGORY_COLORS.Other;
     const icon = CATEGORY_ICONS[listing.category] ?? '📦';
@@ -90,16 +59,12 @@ function FavoriteCard({
         <TouchableOpacity
             style={[styles.card, isRemoving && styles.cardRemoving]}
             activeOpacity={0.85}
-            onPress={() =>
-                router.push({ pathname: '/listing', params: { id: listing.listingId } })
-            }
+            onPress={() => router.push(`/listing/${listing.listingId}`)}
         >
-            {/* Image */}
             <View style={styles.cardImage}>
                 <Text style={styles.cardImageIcon}>{icon}</Text>
             </View>
 
-            {/* Heart button */}
             <TouchableOpacity
                 style={styles.heartBtn}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -112,7 +77,6 @@ function FavoriteCard({
                 }
             </TouchableOpacity>
 
-            {/* Body */}
             <View style={styles.cardBody}>
                 <Text style={styles.cardPrice}>${listing.price}</Text>
                 <Text style={styles.cardTitle} numberOfLines={2}>{listing.title}</Text>
@@ -130,18 +94,11 @@ function FavoriteCard({
     );
 }
 
-// ---------------------------------------------------------------------------
-// Header
-// ---------------------------------------------------------------------------
 function Header() {
     return (
         <View style={styles.header}>
-            <TouchableOpacity
-                style={styles.backBtn}
-                onPress={() => router.back()}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-                <Text style={styles.backBtnText}>←</Text>
+            <TouchableOpacity onPress={() => router.back()}>
+                <Text style={styles.backBtn}>←</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>My Favorites</Text>
             <View style={{ width: 32 }} />
@@ -149,34 +106,29 @@ function Header() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Main Screen
-// ---------------------------------------------------------------------------
 export default function FavoritesScreen() {
-    const [favorites, setFavorites] = useState<EnrichedFavorite[]>([]);
+    const [favorites, setFavorites] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [loadError, setLoadError] = useState<string | null>(null);
-    const [removingId, setRemovingId] = useState<string | null>(null);
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [loadError, setLoadError] = useState(null);
+    const [removingId, setRemovingId] = useState(null);
+    const [currentUser, setCurrentUser] = useState(null);
 
     const loadFavorites = useCallback(async () => {
         try {
             setIsLoading(true);
             setLoadError(null);
 
-            // 1. Get current user
+            // 1. Get current logged in user
             const user = await getCurrentUser();
             setCurrentUser(user);
 
-            // 2. Get all favorites
-            const allFavorites = await fetchFavorites();
-
-            // 3. Filter to only this user's favorites
+            // 2. Get all favorites and filter by this user
+            const allFavorites = await fetchAllFavorites();
             const userFavorites = allFavorites.filter(f => f.userId === user.userId);
 
-            // 4. Fetch listing details for each favorite in parallel
+            // 3. Fetch listing details for each favorite in parallel
             const enriched = await Promise.all(
-                userFavorites.map(async fav => {
+                userFavorites.map(async (fav) => {
                     const listing = await getListingById(fav.listingId);
                     return { ...fav, listing };
                 })
@@ -184,8 +136,7 @@ export default function FavoritesScreen() {
 
             setFavorites(enriched);
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Failed to load favorites';
-            setLoadError(message);
+            setLoadError(err instanceof Error ? err.message : 'Failed to load favorites');
         } finally {
             setIsLoading(false);
         }
@@ -195,43 +146,38 @@ export default function FavoritesScreen() {
         loadFavorites();
     }, [loadFavorites]);
 
-    const handleRemove = useCallback(
-        (item: EnrichedFavorite) => {
-            Alert.alert(
-                'Remove Favorite',
-                'Remove this listing from your favorites?',
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: async () => {
-                            if (!currentUser) return;
-                            setRemovingId(item.favoriteId);
-                            try {
-                                await removeFavorite(item.listingId, currentUser.userId);
-                                setFavorites(prev =>
-                                    prev.filter(f => f.favoriteId !== item.favoriteId)
-                                );
-                            } catch {
-                                Alert.alert('Error', 'Could not remove favorite. Please try again.');
-                            } finally {
-                                setRemovingId(null);
-                            }
-                        },
+    const handleRemove = useCallback((item) => {
+        Alert.alert(
+            'Remove Favorite',
+            'Remove this listing from your favorites?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Remove',
+                    style: 'destructive',
+                    onPress: async () => {
+                        if (!currentUser) return;
+                        setRemovingId(item.favoriteId);
+                        try {
+                            await removeFavorite(item.listingId, currentUser.userId);
+                            setFavorites(prev => prev.filter(f => f.favoriteId !== item.favoriteId));
+                        } catch {
+                            Alert.alert('Error', 'Could not remove favorite. Please try again.');
+                        } finally {
+                            setRemovingId(null);
+                        }
                     },
-                ]
-            );
-        },
-        [currentUser]
-    );
+                },
+            ]
+        );
+    }, [currentUser]);
 
     if (isLoading) {
         return (
             <View style={styles.root}>
                 <StatusBar barStyle="light-content" backgroundColor={RED} />
                 <SafeAreaView style={styles.headerSafe}><Header /></SafeAreaView>
-                <View style={styles.centered}>
+                <View style={styles.center}>
                     <ActivityIndicator size="large" color={RED} />
                     <Text style={styles.loadingText}>Loading favorites…</Text>
                 </View>
@@ -244,7 +190,7 @@ export default function FavoritesScreen() {
             <View style={styles.root}>
                 <StatusBar barStyle="light-content" backgroundColor={RED} />
                 <SafeAreaView style={styles.headerSafe}><Header /></SafeAreaView>
-                <View style={styles.centered}>
+                <View style={styles.center}>
                     <Text style={styles.emptyIcon}>⚠️</Text>
                     <Text style={styles.emptyTitle}>Something went wrong</Text>
                     <Text style={styles.emptyText}>{loadError}</Text>
@@ -304,9 +250,6 @@ export default function FavoritesScreen() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#F5F4F0' },
 
@@ -316,25 +259,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) + 8 : 8,
-        paddingBottom: 14,
+        paddingVertical: 12,
+        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 12 : 12,
     },
-    headerTitle: {
-        fontSize: 17,
-        fontWeight: '700',
-        color: '#fff',
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    },
-    backBtn: { width: 32, alignItems: 'flex-start' },
-    backBtnText: { fontSize: 22, color: '#fff', fontWeight: '700' },
+    headerTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
+    backBtn: { color: '#fff', fontSize: 22, fontWeight: '700' },
 
-    centered: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 32,
-    },
-    loadingText: { marginTop: 12, fontSize: 14, color: '#999' },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
+    loadingText: { fontSize: 15, color: '#666' },
 
     countText: { fontSize: 13, color: '#888', marginBottom: 10, marginLeft: 2 },
 
