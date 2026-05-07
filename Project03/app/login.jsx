@@ -11,8 +11,8 @@ import {
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiBaseUrl } from '@/services/api';
+import { persistAuthSession } from '@/services/auth';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -140,15 +140,15 @@ export default function LoginScreen() {
         return;
       }
 
-      // Store the JWT token securely
-      await AsyncStorage.setItem('authToken', token);
+      // Store token + role so we can route users by permission.
+      const userRole = await persistAuthSession(token);
 
       setSuccess(true);
       setGoogleLoading(false);
       setGithubLoading(false);
 
       setTimeout(() => {
-        router.replace('/(tabs)');
+        router.replace(userRole === 'admin' ? '/admin' : '/(tabs)');
       }, 1200);
 
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
