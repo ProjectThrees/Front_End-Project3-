@@ -1,5 +1,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { jwtDecode } from "jwt-decode";
 
 export type Listing = {
   listingId: string;
@@ -44,22 +46,60 @@ export function getApiBaseUrl(): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
+    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+        headers: {
+            'Content-Type': 'application/json',
+            ...(init?.headers ?? {}),
+        },
+        ...init,
+    });
 
-  if (!response.ok) {
-    const responseText = await response.text();
-    throw new Error(`Request failed (${response.status}): ${responseText || response.statusText}`);
-  }
+    if (!response.ok) {
+        const responseText = await response.text();
+        throw new Error(`Request failed (${response.status}): ${responseText || response.statusText}`);
+    }
 
-  return response.json() as Promise<T>;
+    return response.json() as Promise<T>;
 }
 
 export async function fetchListings(): Promise<Listing[]> {
   return request<Listing[]>('/listings');
+}
+
+export type User = {
+    userId: string;
+    name: string;
+    email: string;
+    role: string;
+    status: string;
+    createdAt: string;
+};
+
+export async function getUserById(userId: string): Promise<User> {
+    return request<User>(`/users/${userId}`);
+}
+
+type TokenPayload = {
+    sub?: string;
+    userId?: string;
+};
+
+export async function getCurrentUser(): Promise<User> {
+    const token = await AsyncStorage.getItem("authToken");
+
+    if (!token) {
+        throw new Error("No auth token found");
+    }
+
+    const decoded = jwtDecode<TokenPayload>(token);
+
+    console.log("JWT decoded:", decoded);
+
+    const userId = decoded.userId ?? decoded.sub;
+
+    if (!userId) {
+        throw new Error("Token does not contain userId or sub");
+    }
+
+    return getUserById(userId);
 }
